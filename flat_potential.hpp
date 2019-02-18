@@ -1,3 +1,6 @@
+#ifndef _FLAT_POTENTIAL_HPP
+#define _FLAT_POTENTIAL_HPP
+
 #include <cstdlib>
 #include <cmath>
 #include <complex>
@@ -17,6 +20,16 @@ namespace {
     double B = 3.0;
     double W = 0.3;
 
+    void output_potential_param() {
+        /*
+         * output potential paramters
+         */
+        ioer::info("Potential parameters: ", 
+                    " A = ", A,
+                    " B = ", B,
+                    " W = ", W);
+    }
+
     double cal_theta(const vector<double>& r) {
         /*
          * helper
@@ -30,7 +43,9 @@ namespace {
          * helper
          */
         const double x = r[0];
-        return vector<double> { std::sqrt(M_PI) * B * std::exp(-B * B * x * x), 0.0 };
+        vector<double> nablatheta(r.size(), 0.0);
+        nablatheta[0] = std::sqrt(M_PI) * B * std::exp(-B * B * x * x);
+        return nablatheta;
     }
 
     double cal_phi(const vector<double>& r) {
@@ -45,7 +60,9 @@ namespace {
         /*
          * helper
          */
-        return vector<double> { 0.0, W };
+        vector<double> nablaphi(r.size(), 0.0);
+        nablaphi[1] = W;
+        return nablaphi;
     }
 
     vector< complex<double> > cal_H(const vector<double>& r) {
@@ -79,7 +96,7 @@ namespace {
          * return: gradiant of complex Hamiltonian (Hx, Hy, ...)
          *
          */
-        const int ndim = 2;
+        const int ndim = r.size();
 
         const double x = r[0];
         const double y = r[1];
@@ -129,6 +146,7 @@ namespace {
          */
 
         const vector< complex<double> > H = cal_H(r);
+        const int ndim = r.size();
         const int edim = static_cast<int>(std::sqrt(static_cast<double>(H.size())));
         vector< complex<double> > evt;
         matrixop::hdiag(cal_H(r), eva, evt);
@@ -146,18 +164,17 @@ namespace {
 
         // F, dc
         const vector< vector< complex<double> > > nablaH = cal_nablaH(r);
-        const int ndim = nablaH.size();
         dc.resize(ndim);
         F.resize(ndim);
 
-        for (int ix = 0; ix < r.size(); ++ix) {
+        for (int ix = 0; ix < ndim; ++ix) {
             dc[ix] = matrixop::matCmatmat(evt, nablaH[ix], evt, edim, edim);
-            F[ix].assign(edim, 0.0);
+            F[ix].assign(edim * edim, 0.0);
 
             for (int j = 0; j < edim; ++j) {
                 for (int k = 0; k < edim; ++k) {
+                    F[ix][j+k*edim] = -dc[ix][j+k*edim].real();
                     if (j == k) {
-                        F[ix][j] = -dc[ix][j+k*edim].real();
                         dc[ix][j+k*edim] = 0.0;
                     }
                     else {
@@ -170,5 +187,6 @@ namespace {
         // save evt to lastevt
         lastevt = std::move(evt);
     }
-
 };
+
+#endif

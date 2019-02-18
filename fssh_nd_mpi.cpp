@@ -15,6 +15,8 @@
 #include "boost/numeric/odeint.hpp"
 #include "boost/math/special_functions/erf.hpp"
 #include "boost/program_options.hpp"
+//#include "potential.hpp"
+#include "flat_potential.hpp"
 
 enum {
     HOP_UP,
@@ -32,11 +34,11 @@ using state_t = vector< complex<double> >;
 int ndim = 2;
 int edim = 2;
 
-vector<double> mass { 1000.0, 1000.0 };
-vector<double> init_r { -3.0, 0.0 };
-vector<double> init_p { 30.0, 0.0 };
-vector<double> sigma_r { 0.5, 0.5 };
-vector<double> sigma_p { 1.0, 1.0 };
+vector<double> mass { 1000.0, 1000.0, 1000.0};
+vector<double> init_r { -3.0, 0.0, 0.0};
+vector<double> init_p { 30.0, 0.0, 0.0 };
+vector<double> sigma_r { 0.5, 0.5, 0.0 };
+vector<double> sigma_p { 1.0, 1.0, 0.0 };
 vector<double> init_s { 0.0, 1.0 };
 
 int Nstep = 10000;
@@ -89,7 +91,7 @@ void init_state(state_t& state, const vector<double>& init_r, const vector<doubl
     misc::crasher::confirm(init_r.size() == ndim and init_p.size() == ndim,
                                 "init_state: mass, init_r, init_p must have identical sizes");
     misc::crasher::confirm(std::all_of(init_s.begin(), init_s.end(), [](double si) { return si >= 0.0; }), 
-                                "init_state: all init_s elements must be non-negative" )
+                                "init_state: all init_s elements must be non-negative" );
 
     // state -> (r, p, c, s)
     const int Lstate = ndim * 2 + edim + 1; 
@@ -99,7 +101,7 @@ void init_state(state_t& state, const vector<double>& init_r, const vector<doubl
     for (int i(0); i < ndim; ++i) {
         state[i].real(randomer::normal(init_r[i], sigma_r[i]));
 
-        while (state[ndim + i].real() <= 0.0) {
+        while (state[ndim + i].real() <= 0.0 and i != ndim - 1) {
             state[ndim + i].real( randomer::normal(init_p[i], sigma_p[i]) / mass[i] ); 
         }
     }
@@ -120,7 +122,7 @@ bool check_end(const state_t& state) {
     return false;
 }
 
-void integrator(vector<state_t>& state, const vector<double>& mass, const double t, const double dt) 
+void integrator(state_t& state, const vector<double>& mass, const double t, const double dt) 
 {
     /*
      * integrate the state from t to t + dt
@@ -132,10 +134,11 @@ void integrator(vector<state_t>& state, const vector<double>& mass, const double
     const int edim = state.size() - 2 * ndim - 1;
     misc::crasher::confirm(ndim == 3, "integrator: this integrator can only be apllied to ndim = 3");
 
+
     // extract information
     vector<double> r(ndim);
     vector<double> p(ndim);
-    vector<double> c(edim);
+    vector< complex<double> > c(edim);
     int s;
     for (int i(0); i < ndim; ++i) {
         r[i] = state[i].real();
@@ -144,7 +147,7 @@ void integrator(vector<state_t>& state, const vector<double>& mass, const double
     for (int i(0); i < edim; ++i) {
         c[i] = state[ndim * 2 + i];
     }
-    s = static_cast<int>(state[ndim * 2 + edim]);
+    s = static_cast<int>(state[ndim * 2 + edim].real());
 
     const double half_dt = 0.5 * dt;
 
@@ -152,7 +155,7 @@ void integrator(vector<state_t>& state, const vector<double>& mass, const double
     r += half_dt * p / mass;
 
     // calculte info 
-    cal_info(r, eva, dc, F, lastevt);
+    cal_info_nume(r, eva, dc, F, lastevt);
     vector<double> force(ndim);
     for (int i(0); i < ndim; ++i) {
         force[i] = F[i][s + s * edim];
@@ -163,12 +166,14 @@ void integrator(vector<state_t>& state, const vector<double>& mass, const double
     // calc w so that cross(p, w) = F^mag * 0.5 * dt
     const double w0 = 0.0, w1 = 0.0;
     double w2 = 0.0;
+    /*
     for (int k(0); k < edim; ++k) {
         if (k != s) {
             w2 += (dc[0][s+k*edim] * dc[1][k+s*edim]).imag();
         }
     }
     w2 *= 2 / mass[2] * half_dt;
+    */
 
     // p -> (I + w) * inv(I - w) * p
     const double w00 = w0*w0, w11 = w1*w1, w22 = w2*w2;
@@ -187,7 +192,7 @@ void integrator(vector<state_t>& state, const vector<double>& mass, const double
     for (int j(0); j < edim; ++j) {
         for (int k(0); k < edim; ++k) {
             for (int i(0); i < ndim; ++i) {
-                rk4_mat[j+k*edim] -= p[i] * d[i][j+k*edim] / mass[i];
+                rk4_mat[j+k*edim] -= p[i] * dc[i][j+k*edim] / mass[i];
             }
         }
     }
@@ -229,7 +234,7 @@ int hopper(state_t& state, const vector<double>& mass)
     // extract information
     vector<double> r(ndim);
     vector<double> p(ndim);
-    vector<double> c(edim);
+    vector< complex<double> > c(edim);
     int s;
     for (int i(0); i < ndim; ++i) {
         r[i] = state[i].real();
@@ -238,14 +243,14 @@ int hopper(state_t& state, const vector<double>& mass)
     for (int i(0); i < edim; ++i) {
         c[i] = state[ndim * 2 + i];
     }
-    s = static_cast<int>(state[ndim * 2 + edim]);
+    s = static_cast<int>(state[ndim * 2 + edim].real());
 
     const int from = s;
     const int to = 1 - s;
 
     // calc hop prob
     complex<double> vd = 0.0;
-    for int (i = 0; i < ndim; ++i) {
+    for (int i(0); i < ndim; ++i) {
         vd += p[i] / mass[i] * dc[i][to+from*edim];
     }
     double g = -2 * dt * (c[from] * conj(c[to]) * vd).real() / (c[from] * conj(c[from])).real();
@@ -297,16 +302,14 @@ struct observer {
             "py0trans", "py0refl", "py1trans", "py1refl",
             "pz0trans", "pz0refl", "pz1trans", "pz1refl",
             "KE", "PE"
-        }
+        };
 
     public:
         observer(const int Nrec) 
             : m_Nrec(Nrec), m_irec(0)
         {
             for (const string& key : m_keys) {
-                m_data_arr.insert(
-                        std::make_pair(key, vector<double>(m_Nrec, 0.0))
-                        );
+                m_data_arr.insert( std::make_pair(key, vector<double>(m_Nrec, 0.0)) );
             }
         }
 
@@ -327,10 +330,11 @@ struct observer {
             misc::crasher::confirm(m_irec < m_Nrec, "observer::add_record: capacity reached");
 
             // population
-            double n0trans = n0refl = n1trans = n1refl = 0.0;
+            double n0trans = 0.0,  n0refl = 0.0, n1trans = 0.0, n1refl = 0.0;
 
             for_each(states.begin(), states.end(), 
-                    [&n0trans, &n0refl, &n1trans, &n1refl] (const state_t& st) { 
+                    [&n0trans, &n0refl, &n1trans, &n1refl,
+                     &ndim, &edim, &mass] (const state_t& st) { 
                         int s = static_cast<int>(st[ndim * edim].real());
                         double px = st[ndim].real();
                         if (s == 0) {
@@ -342,19 +346,20 @@ struct observer {
                     });
 
             m_data_arr["n0trans"].at(m_irec) += n0trans;
-            m_data_arr["n0relf"].at(m_irec) += n0relf;
+            m_data_arr["n0refl"].at(m_irec) += n0refl;
             m_data_arr["n1trans"].at(m_irec) += n1trans;
-            m_data_arr["n1relf"].at(m_irec) += n1relf;
+            m_data_arr["n1refl"].at(m_irec) += n1refl;
 
             // momentum
-            double px0trans = px0refl = px1trans = px1refl = 0.0;
-            double py0trans = py0refl = py1trans = py1refl = 0.0;
-            double pz0trans = pz0refl = pz1trans = pz1refl = 0.0;
+            double px0trans = 0.0, px0refl = 0.0, px1trans = 0.0, px1refl = 0.0;
+            double py0trans = 0.0, py0refl = 0.0, py1trans = 0.0, py1refl = 0.0;
+            double pz0trans = 0.0, pz0refl = 0.0, pz1trans = 0.0, pz1refl = 0.0;
 
             for_each(states.begin(), states.end(), 
                     [&px0trans, &px0refl, &px1trans, &px1refl, 
                      &py0trans, &py0refl, &py1trans, &py1refl,
-                     &pz0trans, &pz0refl, &pz1trans, &pz1refl] (const state_t& st) {
+                     &pz0trans, &pz0refl, &pz1trans, &pz1refl,
+                     &ndim, &edim, &mass ] (const state_t& st) {
                         int s = static_cast<int>(st[ndim * edim].real());
                         double px = st[ndim].real();
                         if (s == 0) {
@@ -398,9 +403,9 @@ struct observer {
             m_data_arr["pz1trans"].at(m_irec) += pz1refl;
 
             // energy
-            double KE = PE = 0.0;
+            double KE = 0.0, PE = 0.0;
             for_each(states.begin(), states.end(), 
-                    [&KE, &PE] (const state_t& st) {
+                    [&KE, &PE, &ndim, &edim, &mass] (const state_t& st) {
                         // extract info
                         vector<double> r(ndim);
                         vector<double> p(ndim);
@@ -446,7 +451,7 @@ struct observer {
                 }
             }
 
-            m_rec = m_Nrec;
+            m_irec = m_Nrec;
         }
 
         void join_record() { 
@@ -462,8 +467,8 @@ struct observer {
                 else if (MPIer::master) {
                     vector<double> vbuf;
                     for (const string& key : m_keys) {
-                        MPIer::recv(r, buf);
-                        m_data_arr[key] += buf;
+                        MPIer::recv(r, vbuf);
+                        m_data_arr[key] += vbuf;
                     }
                 }
                 MPIer::barrier();
@@ -493,9 +498,7 @@ struct observer {
              */
             map<string, double> row;
             for (const string& key : m_keys) {
-                row.insert(
-                        make_pair(key, m_data_arr.at(irec));
-                        );
+                row.insert( make_pair(key, m_data_arr.at(key).at(irec)) );
             }
             return row;
         }
@@ -511,11 +514,13 @@ void fssh_nd_mpi() {
     const vector<int> my_jobs = MPIer::assign_job(Ntraj);
     const int my_Ntraj = my_jobs.size();
 
+
     // initialize trajectories
     vector<state_t> state(my_Ntraj);
     for (int itraj(0); itraj < my_Ntraj; ++itraj) {
-        init_state(state[itraj]);
+        init_state(state[itraj], init_r, init_p, mass, init_s);
     }
+
 
 
     // hop statistics
@@ -527,20 +532,24 @@ void fssh_nd_mpi() {
     int Nrec = Nstep / output_step;
     observer obs(Nrec);
 
+
     //  ----  MAIN LOOP  ---- //
+
 
     // last evt save
     vector< vector< complex<double> > > lastevt_save(my_Ntraj);
 
     for (int istep(0); istep < Nstep; ++istep) {
         for (int itraj(0); itraj < my_Ntraj; ++itraj) {
+            ioer::info("now on traj ", itraj, " step ", istep);
+
             if (check_end(state[itraj]) == false) {
                 // assign last evt
                 lastevt = move(lastevt_save[itraj]);
                 // integrate t -> t + dt
                 integrator(state[itraj], mass, istep * dt, dt);
                 // hopper
-                int hopflag = hopper(state[itraj]);
+                int hopflag = hopper(state[itraj], mass);
                 switch (hopflag) {
                     case HOP_UP : { hopup += 1.0; hop_count[itraj] += 1.0; break; }
                     case HOP_DN : { hopdn += 1.0; hop_count[itraj] += 1.0; break; }
@@ -568,12 +577,16 @@ void fssh_nd_mpi() {
     }
     MPIer::barrier();
 
+
     // ----  COLLECT DATA  ---- //
     
+
     obs.join_record();
     MPIer::barrier();
 
+
     // ----  PROCESS & COLLECT HOP STATISTICS DATA  ---- //
+
 
     for_each(hop_count.begin(), hop_count.end(),
             [&hop_count_summary](double x) { hop_count_summary[static_cast<int>(x)] += 1.0; });
@@ -597,7 +610,9 @@ void fssh_nd_mpi() {
     }
     MPIer::barrier();
 
+
     // ----  OUTPUT  ---- //
+
 
     if (MPIer::master) {
         // Output parameters
@@ -623,7 +638,7 @@ void fssh_nd_mpi() {
             row = obs.get_record(irec);
 
             // average over all traj
-            for (const string& key : m_keys) {
+            for (const string& key : obs.get_keys()) {
                 row[key] /= Ntraj;
             }
 
@@ -642,14 +657,22 @@ void fssh_nd_mpi() {
                     row["KE"] + row["PE"]
                     );
         }
+
         // Output final results
+        if (output_mod == "init_px") {
+            ioer::tabout_nonewline(init_p[0]);
+        }
+        else if (output_mod == "init_s") {
+            ioer::tabout_nonewline(init_s[1]);
+        }
+
         ioer::tabout(
-                init_p[0],
                 row["n0trans"], row["n0refl"], row["n1trans"], row["n1refl"],
                 row["px0trans"], row["px0refl"], row["py0trans"], row["py0refl"], 
                 row["px1trans"], row["px1refl"], row["py1trans"], row["py1refl"], 
                 row["KE"] + row["PE"]
                 );
+
         // Output hop info
         ioer::info("# hopup = ", hopup, " hopdn = ", hopdn, " hopfr = ", hopfr, " hopfr_rate = ", hopfr / (hopup + hopdn + hopfr));
         ioer::info("# hop count: ", hop_count_summary);

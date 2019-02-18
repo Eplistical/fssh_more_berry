@@ -24,7 +24,7 @@ namespace {
         /*
          * output potential paramters
          */
-        ioer::info("Potential parameters: ", 
+        ioer::info("# Potential parameters: ", 
                     " A = ", A,
                     " B = ", B,
                     " W = ", W);
@@ -97,9 +97,7 @@ namespace {
          *
          */
         const int ndim = r.size();
-
-        const double x = r[0];
-        const double y = r[1];
+        const int edim = 2;
 
         const double theta = cal_theta(r);
         const double phi = cal_phi(r);
@@ -113,12 +111,12 @@ namespace {
 
         for (int ix(0); ix < ndim; ++ix) {
             vector< complex<double> >& nablaH_ix = nablaH[ix];
-            nablaH_ix.resize(ndim * ndim);
+            nablaH_ix.resize(edim * edim);
 
-            nablaH_ix[0+0*ndim] = SS * nablatheta[ix];
-            nablaH_ix[1+1*ndim] = -SS * nablatheta[ix];
-            nablaH_ix[0+1*ndim] = eip * (CC * nablatheta[ix] + matrixop::IMAGIZ * SS * nablaphi[ix]);
-            nablaH_ix[1+0*ndim] = conj(nablaH_ix[0+1*ndim]);
+            nablaH_ix[0+0*edim] = SS * nablatheta[ix];
+            nablaH_ix[1+1*edim] = -SS * nablatheta[ix];
+            nablaH_ix[0+1*edim] = eip * (CC * nablatheta[ix] + matrixop::IMAGIZ * SS * nablaphi[ix]);
+            nablaH_ix[1+0*edim] = conj(nablaH_ix[0+1*edim]);
 
             nablaH_ix *= A;
         }
@@ -129,7 +127,7 @@ namespace {
     void cal_info_nume(const vector<double>& r,
             vector<double>& eva, 
             vector< vector< complex<double> > >& dc,
-            vector< vector<double> >& F,
+            vector< vector< complex<double> > >& F,
             vector< complex<double> >& lastevt)
     {
         /*
@@ -173,7 +171,7 @@ namespace {
 
             for (int j = 0; j < edim; ++j) {
                 for (int k = 0; k < edim; ++k) {
-                    F[ix][j+k*edim] = -dc[ix][j+k*edim].real();
+                    F[ix][j+k*edim] = -dc[ix][j+k*edim];
                     if (j == k) {
                         dc[ix][j+k*edim] = 0.0;
                     }

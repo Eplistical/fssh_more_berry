@@ -31,7 +31,7 @@ using boost::numeric::odeint::runge_kutta4;
 using boost::math::erf;
 using state_t = vector< complex<double> >;
 
-int ndim = 2;
+int ndim = 3;
 int edim = 2;
 
 vector<double> mass { 1000.0, 1000.0, 1000.0};
@@ -48,9 +48,12 @@ int Ntraj = 2000;
 int seed = 0;
 string output_mod = "init_s";
 
+double xwall_left = -10.0;
+double xwall_right = 10.0;
+
 vector<double> eva;
 vector< vector< complex<double> > > dc;
-vector< vector<double> > F;
+vector< vector< complex<double> > > F;
 vector< complex<double> > lastevt;
 
 bool argparse(int argc, char** argv) 
@@ -65,12 +68,24 @@ bool argparse(int argc, char** argv)
         ("Nstep", po::value<int>(&Nstep), "# step")
         ("output_step", po::value<int>(&output_step), "# step for output")
         ("dt", po::value<double>(&dt), "single time step")
+        ("mass", po::value< vector<double> >(&mass)->multitoken(), "mass vector")
+        ("init_r", po::value< vector<double> >(&init_r)->multitoken(), "init_r vector")
+        ("init_p", po::value< vector<double> >(&init_p)->multitoken(), "init_p vector")
+        ("sigma_r", po::value< vector<double> >(&sigma_r)->multitoken(), "sigma_r vector")
+        ("sigma_p", po::value< vector<double> >(&sigma_p)->multitoken(), "sigma_p vector")
+        ("init_s", po::value< vector<double> >(&init_s)->multitoken(), "init_s vector")
+        ("xwall_left", po::value<double>(&xwall_left), "x wall left")
+        ("xwall_right", po::value<double>(&xwall_right), "x wall right")
         ("seed", po::value<int>(&seed), "random seed")
         ("output_mod", po::value<string>(&output_mod), "output mode, init_s or init_px")
         ;
     po::variables_map vm; 
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);    
+
+    ndim = mass.size();
+    edim = init_s.size();
+
     if (vm.count("help")) {
         std::cout << desc << "\n";
         return false;
@@ -102,16 +117,17 @@ void init_state(state_t& state, const vector<double>& init_r, const vector<doubl
         state[i].real(randomer::normal(init_r[i], sigma_r[i]));
 
         while (state[ndim + i].real() <= 0.0 and i != ndim - 1) {
-            state[ndim + i].real( randomer::normal(init_p[i], sigma_p[i]) / mass[i] ); 
+            state[ndim + i].real( randomer::normal(init_p[i], sigma_p[i]) ); 
         }
     }
 
     // init electronic DoF (c, s)
     vector<double> s_normalized = init_s / sum(init_s);
     for (int i(0); i < edim; ++i) {
-        state[ndim * 2 + i] = s_normalized[i];
+        state[ndim * 2 + i] = sqrt(s_normalized[i]);
     }
     state[ndim * 2 + edim].real( randomer::discrete(s_normalized.begin(), s_normalized.end() ) );
+
 }
 
 
@@ -119,6 +135,16 @@ bool check_end(const state_t& state) {
     /*
      * check whether a trajectory has left the reactive region
      */
+
+    // extract information
+    double x = state[0].real();
+    double px = state[0 + ndim].real();
+    if (x < xwall_left and px < 0.0) {
+        return true;
+    }
+    else if (x > xwall_right and px > 0.0) {
+        return true;
+    }
     return false;
 }
 
@@ -158,7 +184,7 @@ void integrator(state_t& state, const vector<double>& mass, const double t, cons
     cal_info_nume(r, eva, dc, F, lastevt);
     vector<double> force(ndim);
     for (int i(0); i < ndim; ++i) {
-        force[i] = F[i][s + s * edim];
+        force[i] = F[i][s + s * edim].real();
     }
 
     p += half_dt * force;
@@ -166,14 +192,12 @@ void integrator(state_t& state, const vector<double>& mass, const double t, cons
     // calc w so that cross(p, w) = F^mag * 0.5 * dt
     const double w0 = 0.0, w1 = 0.0;
     double w2 = 0.0;
-    /*
     for (int k(0); k < edim; ++k) {
         if (k != s) {
             w2 += (dc[0][s+k*edim] * dc[1][k+s*edim]).imag();
         }
     }
     w2 *= 2 / mass[2] * half_dt;
-    */
 
     // p -> (I + w) * inv(I - w) * p
     const double w00 = w0*w0, w11 = w1*w1, w22 = w2*w2;
@@ -335,7 +359,7 @@ struct observer {
             for_each(states.begin(), states.end(), 
                     [&n0trans, &n0refl, &n1trans, &n1refl,
                      &ndim, &edim, &mass] (const state_t& st) { 
-                        int s = static_cast<int>(st[ndim * edim].real());
+                        int s = static_cast<int>(st[2 * ndim + edim].real());
                         double px = st[ndim].real();
                         if (s == 0) {
                             (px >= 0.0) ? n0trans += 1.0 : n0refl += 1.0;
@@ -360,7 +384,7 @@ struct observer {
                      &py0trans, &py0refl, &py1trans, &py1refl,
                      &pz0trans, &pz0refl, &pz1trans, &pz1refl,
                      &ndim, &edim, &mass ] (const state_t& st) {
-                        int s = static_cast<int>(st[ndim * edim].real());
+                        int s = static_cast<int>(st[2 * ndim + edim].real());
                         double px = st[ndim].real();
                         if (s == 0) {
                             if (px >= 0.0) {
@@ -413,11 +437,11 @@ struct observer {
                             r[i] = st[i].real();
                             p[i] = st[ndim + i].real();
                         }
-                        int s = static_cast<int>(st[ndim * edim].real());
+                        int s = static_cast<int>(st[2 * ndim + edim].real());
 
                         // KE
                         for (int i(0); i < ndim; ++i) {
-                            KE += 0.5 * mass[i] * p[i] * p[i];
+                            KE += 0.5 / mass[i] * p[i] * p[i];
                         }
 
                         // PE 
@@ -541,8 +565,6 @@ void fssh_nd_mpi() {
 
     for (int istep(0); istep < Nstep; ++istep) {
         for (int itraj(0); itraj < my_Ntraj; ++itraj) {
-            ioer::info("now on traj ", itraj, " step ", istep);
-
             if (check_end(state[itraj]) == false) {
                 // assign last evt
                 lastevt = move(lastevt_save[itraj]);
@@ -623,6 +645,7 @@ void fssh_nd_mpi() {
                 " init_r = ", init_r, " init_p = ", init_p, 
                 " sigma_r = ", sigma_r, " sigma_p = ", sigma_p, 
                 " init_s = ", init_s,
+                " xwall_left = ", xwall_left, " xwall_right = ", xwall_right, 
                 " output_step = ", output_step, " output_mod = ", output_mod
                 );
         // Output header
@@ -636,6 +659,7 @@ void fssh_nd_mpi() {
         map<string, double> row;
         for (int irec = 0; irec < Nrec; ++irec) {
             row = obs.get_record(irec);
+
 
             // average over all traj
             for (const string& key : obs.get_keys()) {
@@ -652,13 +676,14 @@ void fssh_nd_mpi() {
             ioer::tabout(
                     "#", irec * output_step * dt, 
                     row["n0trans"], row["n0refl"], row["n1trans"], row["n1refl"],
-                    row["px0trans"], row["px0refl"], row["py0trans"], row["py0refl"], 
-                    row["px1trans"], row["px1refl"], row["py1trans"], row["py1refl"], 
+                    row["px0trans"], row["py0trans"], row["px0refl"], row["py0refl"], 
+                    row["px1trans"], row["py1trans"], row["px1refl"], row["py1refl"], 
                     row["KE"] + row["PE"]
                     );
         }
 
         // Output final results
+        ioer::info("# final results: ");
         if (output_mod == "init_px") {
             ioer::tabout_nonewline(init_p[0]);
         }
@@ -674,13 +699,26 @@ void fssh_nd_mpi() {
                 );
 
         // Output hop info
+        ioer::info("# hop statistics: ");
         ioer::info("# hopup = ", hopup, " hopdn = ", hopdn, " hopfr = ", hopfr, " hopfr_rate = ", hopfr / (hopup + hopdn + hopfr));
         ioer::info("# hop count: ", hop_count_summary);
     }
     MPIer::barrier();
 }
 
+void test() {
+    vector<double> r(3, 0.0);
+    for (double x(-5.0); x < 5.0; x += 0.01) {
+        r[0] = x;
+
+        cal_info_nume(r, eva, dc, F, lastevt);
+        ioer::tabout(x, eva[0], eva[1], abs(dc[0][0+1*2]), abs(dc[1][0+1*2]), F[0][0+0*2].real(), F[0][1+1*2].real());
+    }
+    abort();
+}
+
 int main(int argc, char** argv) {
+    //test();
     MPIer::setup();
     if (argc < 2) {
         if (MPIer::master) ioer::info("use --help for detailed info");

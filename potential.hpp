@@ -22,7 +22,7 @@ namespace {
         /*
          * output potential paramters
          */
-        ioer::info("Potential parameters: ", 
+        ioer::info("# Potential parameters: ", 
                     " W = ", W);
     }
 
@@ -103,7 +103,7 @@ namespace {
     void cal_info_nume(const vector<double>& r,
             vector<double>& eva, 
             vector< vector< complex<double> > >& dc,
-            vector< vector<double> >& F,
+            vector< vector< complex<double> > >& F,
             vector< complex<double> >& lastevt)
     {
         /*
@@ -147,7 +147,7 @@ namespace {
 
             for (int j = 0; j < edim; ++j) {
                 for (int k = 0; k < edim; ++k) {
-                    F[ix][j+k*edim] = -dc[ix][j+k*edim].real();
+                    F[ix][j+k*edim] = -dc[ix][j+k*edim];
                     if (j == k) {
                         dc[ix][j+k*edim] = 0.0;
                     }

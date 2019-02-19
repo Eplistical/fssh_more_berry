@@ -41,6 +41,8 @@ vector<double> sigma_r { 0.5, 0.5, 0.0 };
 vector<double> sigma_p { 1.0, 1.0, 0.0 };
 vector<double> init_s { 0.0, 1.0 };
 
+vector<double> potential_params;
+
 int Nstep = 10000;
 double dt = 0.1;
 int output_step = 100;
@@ -76,6 +78,7 @@ bool argparse(int argc, char** argv)
         ("init_s", po::value< vector<double> >(&init_s)->multitoken(), "init_s vector")
         ("xwall_left", po::value<double>(&xwall_left), "x wall left")
         ("xwall_right", po::value<double>(&xwall_right), "x wall right")
+        ("potential_params", po::value< vector<double> >(&potential_params)->multitoken(), "potential_params vector")
         ("seed", po::value<int>(&seed), "random seed")
         ("output_mod", po::value<string>(&output_mod), "output mode, init_s or init_px")
         ;
@@ -86,6 +89,10 @@ bool argparse(int argc, char** argv)
 
     ndim = mass.size();
     edim = init_s.size();
+
+    if (not potential_params.empty()) {
+        set_potenial_params(potential_params);
+    }
 
     if (vm.count("help")) {
         std::cout << desc << "\n";

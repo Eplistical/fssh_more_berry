@@ -26,6 +26,12 @@ namespace {
                     " W = ", W);
     }
 
+    void set_potenial_params(const std::vector<double>& params) {
+        misc::crasher::confirm(params.size() >= 1, 
+                "set_potenial_params: potential paramter vector size must be >= 1");
+        W = params[0];
+    }
+
     complex<double> cal_phi(const vector<double>& r) {
         /*
          * helper

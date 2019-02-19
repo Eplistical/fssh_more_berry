@@ -5,6 +5,7 @@
 #include <cmath>
 #include <complex>
 #include <algorithm>
+#include <vector>
 #include <string>
 #include "misc/crasher.hpp"
 #include "misc/randomer.hpp"
@@ -28,6 +29,14 @@ namespace {
                     " A = ", A,
                     " B = ", B,
                     " W = ", W);
+    }
+
+    void set_potenial_params(const std::vector<double>& params) {
+        misc::crasher::confirm(params.size() >= 3, 
+                "set_potenial_params: potential paramter vector size must be >= 3");
+        A = params[0];
+        B = params[1];
+        W = params[2];
     }
 
     double cal_theta(const vector<double>& r) {

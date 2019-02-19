@@ -146,7 +146,6 @@ bool check_end(const state_t& state) {
     /*
      * check whether a trajectory has left the reactive region
      */
-    return false;
 
     // extract information
     double x = state[0].real();
@@ -258,7 +257,6 @@ int hopper(state_t& state, const vector<double>& mass)
     /*
      * 2-state hopper 
      */
-    return HOP_RJ;
 
     // check
     const int ndim = mass.size();
@@ -295,7 +293,7 @@ int hopper(state_t& state, const vector<double>& mass)
 
     // random number
     if (randomer::rand() < g) {
-        // momentum-rescaling direction
+        // momentum-rescaling direction: (x-direction)
         vector<double> n(ndim, 0.0);
         n[0] = 1.0;
 

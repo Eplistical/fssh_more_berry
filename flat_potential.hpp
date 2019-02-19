@@ -16,9 +16,9 @@ namespace {
     using std::vector;
     using std::complex;
 
-    double A = 0.10;
+    double A = 0.02;
     double B = 3.0;
-    double W = 0.3;
+    double W = 0.5;
 
     void output_potential_param() {
         /*

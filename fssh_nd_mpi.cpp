@@ -80,7 +80,8 @@ bool argparse(int argc, char** argv)
         ("output_mod", po::value<string>(&output_mod), "output mode, init_s or init_px")
         ;
     po::variables_map vm; 
-    po::store(po::parse_command_line(argc, argv, desc), vm);
+    //po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::store(parse_command_line(argc, argv, desc, po::command_line_style::unix_style ^ po::command_line_style::allow_short), vm);
     po::notify(vm);    
 
     ndim = mass.size();
@@ -116,7 +117,17 @@ void init_state(state_t& state, const vector<double>& init_r, const vector<doubl
     for (int i(0); i < ndim; ++i) {
         state[i].real(randomer::normal(init_r[i], sigma_r[i]));
 
-        while (state[ndim + i].real() <= 0.0 and i != ndim - 1) {
+        if (sigma_p[i] == 0.0) {
+            // if sigma = 0
+            state[ndim + i].real(init_p[i]);
+        }
+        else if (i == 0) {
+            // if x direction must be positive
+            while (state[ndim + i].real() <= 0.0) {
+                state[ndim + i].real( randomer::normal(init_p[i], sigma_p[i]) ); 
+            }
+        }
+        else {
             state[ndim + i].real( randomer::normal(init_p[i], sigma_p[i]) ); 
         }
     }
@@ -135,6 +146,7 @@ bool check_end(const state_t& state) {
     /*
      * check whether a trajectory has left the reactive region
      */
+    return false;
 
     // extract information
     double x = state[0].real();
@@ -197,7 +209,7 @@ void integrator(state_t& state, const vector<double>& mass, const double t, cons
             w2 += (dc[0][s+k*edim] * dc[1][k+s*edim]).imag();
         }
     }
-    w2 *= 2 / mass[2] * half_dt;
+    w2 *= 2.0 / mass[2] * half_dt;
 
     // p -> (I + w) * inv(I - w) * p
     const double w00 = w0*w0, w11 = w1*w1, w22 = w2*w2;
@@ -229,7 +241,7 @@ void integrator(state_t& state, const vector<double>& mass, const double t, cons
     k2 = dt * matrixop::matmat(rk4_mat, c + 0.5 * k1, edim);
     k3 = dt * matrixop::matmat(rk4_mat, c + 0.5 * k2, edim);
     k4 = dt * matrixop::matmat(rk4_mat, c + k3, edim);
-    c = 1.0 / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+    c += 1.0 / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
 
     // replace r, p, c w/ t+dt results
     for (int i(0); i < ndim; ++i) {
@@ -246,6 +258,7 @@ int hopper(state_t& state, const vector<double>& mass)
     /*
      * 2-state hopper 
      */
+    return HOP_RJ;
 
     // check
     const int ndim = mass.size();
@@ -546,7 +559,6 @@ void fssh_nd_mpi() {
     }
 
 
-
     // hop statistics
     double hopup = 0.0, hopdn = 0.0, hopfr = 0.0, hoprj = 0.0;
     vector<double> hop_count(my_Ntraj, 0.0);
@@ -697,6 +709,7 @@ void fssh_nd_mpi() {
                 row["px1trans"], row["px1refl"], row["py1trans"], row["py1refl"], 
                 row["KE"] + row["PE"]
                 );
+
 
         // Output hop info
         ioer::info("# hop statistics: ");

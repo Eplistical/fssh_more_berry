@@ -703,8 +703,8 @@ void fssh_nd_mpi() {
 
         ioer::tabout(
                 row["n0trans"], row["n0refl"], row["n1trans"], row["n1refl"],
-                row["px0trans"], row["px0refl"], row["py0trans"], row["py0refl"], 
-                row["px1trans"], row["px1refl"], row["py1trans"], row["py1refl"], 
+                row["px0trans"], row["py0trans"], row["px0refl"], row["py0refl"], 
+                row["px1trans"], row["py1trans"], row["px1refl"], row["py1refl"], 
                 row["KE"] + row["PE"]
                 );
 

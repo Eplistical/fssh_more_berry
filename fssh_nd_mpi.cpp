@@ -432,17 +432,17 @@ struct observer {
                     );
 
             m_data_arr["px0trans"].at(m_irec) += px0trans;
-            m_data_arr["px0trans"].at(m_irec) += px0refl;
+            m_data_arr["px0refl"].at(m_irec) += px0refl;
             m_data_arr["px1trans"].at(m_irec) += px1trans;
-            m_data_arr["px1trans"].at(m_irec) += px1refl;
+            m_data_arr["px1refl"].at(m_irec) += px1refl;
             m_data_arr["py0trans"].at(m_irec) += py0trans;
-            m_data_arr["py0trans"].at(m_irec) += py0refl;
+            m_data_arr["py0refl"].at(m_irec) += py0refl;
             m_data_arr["py1trans"].at(m_irec) += py1trans;
-            m_data_arr["py1trans"].at(m_irec) += py1refl;
+            m_data_arr["py1refl"].at(m_irec) += py1refl;
             m_data_arr["pz0trans"].at(m_irec) += pz0trans;
-            m_data_arr["pz0trans"].at(m_irec) += pz0refl;
+            m_data_arr["pz0refl"].at(m_irec) += pz0refl;
             m_data_arr["pz1trans"].at(m_irec) += pz1trans;
-            m_data_arr["pz1trans"].at(m_irec) += pz1refl;
+            m_data_arr["pz1refl"].at(m_irec) += pz1refl;
 
             // energy
             double KE = 0.0, PE = 0.0;

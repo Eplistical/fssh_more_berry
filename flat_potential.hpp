@@ -17,26 +17,26 @@ namespace {
     using std::vector;
     using std::complex;
 
-    double A = 0.02;
-    double B = 3.0;
-    double W = 0.5;
+    double param_A = 0.02;
+    double param_B = 3.0;
+    double param_W = 0.5;
 
     void output_potential_param() {
         /*
          * output potential paramters
          */
         ioer::info("# Potential parameters: ", 
-                    " A = ", A,
-                    " B = ", B,
-                    " W = ", W);
+                    " A = ", param_A,
+                    " B = ", param_B,
+                    " W = ", param_W);
     }
 
     void set_potenial_params(const std::vector<double>& params) {
         misc::crasher::confirm(params.size() >= 3, 
                 "set_potenial_params: potential paramter vector size must be >= 3");
-        A = params[0];
-        B = params[1];
-        W = params[2];
+        param_A = params[0];
+        param_B = params[1];
+        param_W = params[2];
     }
 
     double cal_theta(const vector<double>& r) {
@@ -44,7 +44,7 @@ namespace {
          * helper
          */
         const double x = r[0];
-        return 0.5 * M_PI * (boost::math::erf(B * x) + 1);
+        return 0.5 * M_PI * (boost::math::erf(param_B * x) + 1);
     }
 
     vector<double> cal_nablatheta(const vector<double>& r) {
@@ -53,7 +53,7 @@ namespace {
          */
         const double x = r[0];
         vector<double> nablatheta(r.size(), 0.0);
-        nablatheta[0] = std::sqrt(M_PI) * B * std::exp(-B * B * x * x);
+        nablatheta[0] = std::sqrt(M_PI) * param_B * std::exp(-param_B * param_B * x * x);
         return nablatheta;
     }
 
@@ -62,7 +62,7 @@ namespace {
          * helper
          */
         const double y = r[1];
-        return W * y;
+        return param_W * y;
     }
 
     vector<double> cal_nablaphi(const vector<double>& r) {
@@ -70,7 +70,7 @@ namespace {
          * helper
          */
         vector<double> nablaphi(r.size(), 0.0);
-        nablaphi[1] = W;
+        nablaphi[1] = param_W;
         return nablaphi;
     }
 
@@ -93,7 +93,7 @@ namespace {
         H[1+1*2] = CC;
         H[0+1*2] = SS * eip;
         H[1+0*2] = conj(H[0+1*2]);
-        H *= A;
+        H *= param_A;
 
         return H;
     }
@@ -127,7 +127,7 @@ namespace {
             nablaH_ix[0+1*edim] = eip * (CC * nablatheta[ix] + matrixop::IMAGIZ * SS * nablaphi[ix]);
             nablaH_ix[1+0*edim] = conj(nablaH_ix[0+1*edim]);
 
-            nablaH_ix *= A;
+            nablaH_ix *= param_A;
         }
 
         return nablaH;

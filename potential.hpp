@@ -99,7 +99,7 @@ namespace {
         Hy[1+0*2] = conj(Hy[0+1*2]);
 
         // other dimensions
-        for (int ix(2); ix < ndim); ++ix) {
+        for (int ix(2); ix < ndim; ++ix) {
             nablaH[ix].resize(4);
         }
 

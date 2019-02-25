@@ -19,7 +19,7 @@ namespace {
     double param_A = 0.0025;
     double param_B = 0.01;
     double param_k = 0.8;
-    double param_W = 0.01;
+    double param_W = 0.5;
 
     void output_potential_param() {
         /*

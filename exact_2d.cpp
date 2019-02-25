@@ -46,6 +46,7 @@ double dt = 0.1;
 int output_step = 100;
 
 string output_mod = "init_s";
+bool enable_adiab = false;
 
 inline bool argparse(int argc, char** argv) 
 {
@@ -70,6 +71,7 @@ inline bool argparse(int argc, char** argv)
         ("xwall_right", po::value<double>(&xwall_right), " right boundary x value to check end")
         ("Nstep", po::value<int>(&Nstep), "# step")
         ("dt", po::value<double>(&dt), "time step")
+        ("enable_adiab", po::value<bool>(&enable_adiab), "output observables on adiabats")
         ("output_step", po::value<int>(&output_step), "output step")
         ("output_mod", po::value<string>(&output_mod), "output mode, can be init_s or init_px")
         ;
@@ -212,67 +214,73 @@ void exact() {
             H10[k+j*M] = H[1+0*2];
             H11[k+j*M] = H[1+1*2];
 
-            // phase align & record evt
-            if (j == 0 and k == 0) {
-                const complex<double> phase0 = evt[0+0*2] / abs(evt[0+0*2]);
-                evt[0+0*2] *= conj(phase0);
-                evt[1+0*2] *= conj(phase0);
-                const complex<double> phase1 = evt[1+1*2] / abs(evt[1+1*2]);
-                evt[0+1*2] *= conj(phase1);
-                evt[1+1*2] *= conj(phase1);
+            if (enable_adiab) {
+                // adiab: phase align & record evts
+                if (j == 0 and k == 0) {
+                    const complex<double> phase0 = evt[0+0*2] / abs(evt[0+0*2]);
+                    evt[0+0*2] *= conj(phase0);
+                    evt[1+0*2] *= conj(phase0);
+                    const complex<double> phase1 = evt[1+1*2] / abs(evt[1+1*2]);
+                    evt[0+1*2] *= conj(phase1);
+                    evt[1+1*2] *= conj(phase1);
+                }
+                else if (k == 0) {
+                    const complex<double> phase0 = conj(evts00[k+(j-1)*M]) * evt[0+0*2] + conj(evts10[k+(j-1)*M]) * evt[1+0*2];
+                    evt[0+0*2] *= conj(phase0);
+                    evt[1+0*2] *= conj(phase0);
+                    const complex<double> phase1 = conj(evts01[k+(j-1)*M]) * evt[0+1*2] + conj(evts11[k+(j-1)*M]) * evt[1+1*2];
+                    evt[0+1*2] *= conj(phase1);
+                    evt[1+1*2] *= conj(phase1);
+                }
+                else {
+                    const complex<double> phase0 = conj(evts00[(k-1)+j*M]) * evt[0+0*2] + conj(evts10[(k-1)+j*M]) * evt[1+0*2];
+                    evt[0+0*2] *= conj(phase0);
+                    evt[1+0*2] *= conj(phase0);
+                    const complex<double> phase1 = conj(evts01[(k-1)+j*M]) * evt[0+1*2] + conj(evts11[(k-1)+j*M]) * evt[1+1*2];
+                    evt[0+1*2] *= conj(phase1);
+                    evt[1+1*2] *= conj(phase1);
+                }
+                evts00[k+j*M] = evt[0+0*2];
+                evts01[k+j*M] = evt[0+1*2];
+                evts10[k+j*M] = evt[1+0*2];
+                evts11[k+j*M] = evt[1+1*2];
             }
-            else if (k == 0) {
-                const complex<double> phase0 = conj(evts00[k+(j-1)*M]) * evt[0+0*2] + conj(evts10[k+(j-1)*M]) * evt[1+0*2];
-                evt[0+0*2] *= conj(phase0);
-                evt[1+0*2] *= conj(phase0);
-                const complex<double> phase1 = conj(evts01[k+(j-1)*M]) * evt[0+1*2] + conj(evts11[k+(j-1)*M]) * evt[1+1*2];
-                evt[0+1*2] *= conj(phase1);
-                evt[1+1*2] *= conj(phase1);
-            }
-            else {
-                const complex<double> phase0 = conj(evts00[(k-1)+j*M]) * evt[0+0*2] + conj(evts10[(k-1)+j*M]) * evt[1+0*2];
-                evt[0+0*2] *= conj(phase0);
-                evt[1+0*2] *= conj(phase0);
-                const complex<double> phase1 = conj(evts01[(k-1)+j*M]) * evt[0+1*2] + conj(evts11[(k-1)+j*M]) * evt[1+1*2];
-                evt[0+1*2] *= conj(phase1);
-                evt[1+1*2] *= conj(phase1);
-            }
-            evts00[k+j*M] = evt[0+0*2];
-            evts01[k+j*M] = evt[0+1*2];
-            evts10[k+j*M] = evt[1+0*2];
-            evts11[k+j*M] = evt[1+1*2];
         }
     }
     // initialized WF on adiabats
     vector< complex<double> > psiad0(M * M, 0.0), psiad1(M * M, 0.0);
     vector< complex<double> > psi0(M * M, 0.0), psi1(M * M, 0.0);
-    /*
-    for (int k = 0; k < M; ++k) {
-        double y = yarr[k];
-        for (int j = 0; j < M; ++j) {
-            double x = xarr[j];
-            psiad0[k+j*M] = c0 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
-            psiad1[k+j*M] = c1 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+    if (enable_adiab) {
+        // initialize wf on adiabats
+        for (int k = 0; k < M; ++k) {
+            double y = yarr[k];
+            for (int j = 0; j < M; ++j) {
+                double x = xarr[j];
+                psiad0[k+j*M] = c0 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+                psiad1[k+j*M] = c1 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+            }
         }
+        double nm = norm(psiad0 | psiad1);
+        psiad0 /= nm;
+        psiad1 /= nm;
+        psi0 = evts00 * psiad0 + evts01 * psiad1;
+        psi1 = evts10 * psiad0 + evts11 * psiad1;
     }
-    double nm = norm(psiad0 | psiad1);
-    psiad0 /= nm;
-    psiad1 /= nm;
-    psi0 = evts00 * psiad0 + evts01 * psiad1;
-    psi1 = evts10 * psiad0 + evts11 * psiad1;
-    */
+    else {
+        // initialize wf on diabats
+        for (int k = 0; k < M; ++k) {
+            double y = yarr[k];
+            for (int j = 0; j < M; ++j) {
+                double x = xarr[j];
+                psi0[k+j*M] = c0 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+                psi1[k+j*M] = c1 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+            }
+        }
+        double nm = norm(psi0 | psi1);
+        psi0 /= nm;
+        psi1 /= nm;
+    }
 
-    for (int k = 0; k < M; ++k) {
-        double y = yarr[k];
-        for (int j = 0; j < M; ++j) {
-            double x = xarr[j];
-            psi0[k+j*M] = c0 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
-            psi1[k+j*M] = c1 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
-        }
-    }
-    double nm = norm(psi0 | psi1);
-    psi0 /= nm;
-    psi1 /= nm;
 
     // covinience vairables
     vector<int> dim{ M, M };
@@ -281,6 +289,10 @@ void exact() {
     double n0trans = 0.0, n0refl = 0.0, n1trans = 0.0, n1refl = 0.0;
     double py0trans = 0.0, py0refl = 0.0, py1trans = 0.0, py1refl = 0.0;
     double px0trans = 0.0, px0refl = 0.0, px1trans = 0.0, px1refl = 0.0;
+    // adiab statistics
+    double nad0trans = 0.0, nad0refl = 0.0, nad1trans = 0.0, nad1refl = 0.0;
+    double pady0trans = 0.0, pady0refl = 0.0, pady1trans = 0.0, pady1refl = 0.0;
+    double padx0trans = 0.0, padx0refl = 0.0, padx1trans = 0.0, padx1refl = 0.0;
     // propagate WF
     for (int istep = 0; istep < Nstep; ++istep) {
         // exp(-iVdt/2)
@@ -339,16 +351,79 @@ void exact() {
             px0refl /= (n0refl + 1e-16);
             px1refl /= (n1refl + 1e-16);
             PE = real(sum(conj(psi0) * H00 * psi0 + conj(psi0) * H01 * psi1 + conj(psi1) * H10 * psi0 + conj(psi1) * H11 * psi1));
+
+            if (enable_adiab) {
+                // analysis in adiab
+
+                // get psiad
+                psiad0 = conj(evts00) * psi0 + conj(evts10) * psi1;
+                psiad1 = conj(evts01) * psi0 + conj(evts11) * psi1;
+                double nm = norm(psiad0 | psiad1);
+                psiad0 /= nm;
+                psiad1 /= nm;
+
+                // get psiad fft
+                auto psiad_k0 = myfftshift(misc::fftn(psiad0, dim));
+                auto psiad_k1 = myfftshift(misc::fftn(psiad1, dim));
+                nm = norm(psiad_k0 | psiad_k1);
+                psiad_k0 /= nm;
+                psiad_k1 /= nm;
+
+                // analysis
+                nad0trans = nad0refl = nad1trans = nad1refl = 0.0;
+                pady0trans = pady0refl = pady1trans = pady1refl = 0.0;
+                padx0trans = padx0refl = padx1trans = padx1refl = 0.0;
+                for (int k = 0; k < M; ++k) {
+                    for (int j = 0; j < M; ++j) {
+                        if (kxarr[j] >= 0.0) {
+                            nad0trans += pow(abs(psiad_k0[k+j*M]), 2);
+                            nad1trans += pow(abs(psiad_k1[k+j*M]), 2);
+                            pady0trans += pow(abs(psiad_k0[k+j*M]), 2) * kyarr[k];
+                            pady1trans += pow(abs(psiad_k1[k+j*M]), 2) * kyarr[k];
+                            padx0trans += pow(abs(psiad_k0[k+j*M]), 2) * kxarr[j];
+                            padx1trans += pow(abs(psiad_k1[k+j*M]), 2) * kxarr[j];
+                        }
+                        else {
+                            nad0refl += pow(abs(psiad_k0[k+j*M]), 2);
+                            nad1refl += pow(abs(psiad_k1[k+j*M]), 2);
+                            pady0refl += pow(abs(psiad_k0[k+j*M]), 2) * kyarr[k];
+                            pady1refl += pow(abs(psiad_k1[k+j*M]), 2) * kyarr[k];
+                            padx0refl += pow(abs(psiad_k0[k+j*M]), 2) * kxarr[j];
+                            padx1refl += pow(abs(psiad_k1[k+j*M]), 2) * kxarr[j];
+                        }
+                    }
+                }
+                pady0trans /= (nad0trans + 1e-16);
+                pady1trans /= (nad1trans + 1e-16);
+                pady0refl /= (nad0refl + 1e-16);
+                pady1refl /= (nad1refl + 1e-16);
+                padx0trans /= (nad0trans + 1e-16);
+                padx1trans /= (nad1trans + 1e-16);
+                padx0refl /= (nad0refl + 1e-16);
+                padx1refl /= (nad1refl + 1e-16);
+            }
+
             // output
             if (istep == 0) {
                 ioer::info("# EXACT 2D ");
+                if (enable_adiab) {
+                    ioer::info("# ADIAB ");
+                }
+                else {
+                    ioer::info("# DIAB ");
+                }
                 ioer::info("# para: ", " L = ", L, " M = ", M, " mass = ", mass, " A = ", param_A, " B = ", param_B, " k = ", param_k, " W = ", param_W, 
                                        " xI = ", xI, " yI = ", yI, " sigmax = ", sigmax, " sigmay = ", sigmay, " kxI = ", kxI, " kyI = ", kyI, " init_s = ", init_s, " c0 = ", c0, " c1 = ", c1,
                                        " Nstep = ", Nstep, " dt = ", dt, " output_step = ", output_step);
                 ioer::info("# dx = ", dx, " dy = ", dy, " dkx = ", dkx, " dky = ", dky, " xwall_left = ", xwall_left, " xwall_right = ", xwall_right);
                 ioer::tabout('#', "t", "n0trans", "n0refl", "n1trans", "n1refl", "px0trans", "py0trans", "px0refl", "py0refl", "px1trans", "py1trans", "px1refl", "py1refl", "Etot");
             }
-            ioer::tabout('#', istep * dt, n0trans, n0refl, n1trans, n1refl, px0trans, py0trans, px0refl, py0refl, px1trans, py1trans, px1refl, py1refl, KE0 + KE1 + PE);
+            if (enable_adiab) {
+                ioer::tabout('#', istep * dt, nad0trans, nad0refl, nad1trans, nad1refl, padx0trans, pady0trans, padx0refl, pady0refl, padx1trans, pady1trans, padx1refl, pady1refl, KE0 + KE1 + PE);
+            }
+            else {
+                ioer::tabout('#', istep * dt, n0trans, n0refl, n1trans, n1refl, px0trans, py0trans, px0refl, py0refl, px1trans, py1trans, px1refl, py1refl, KE0 + KE1 + PE);
+            }
             // check end
             if (check_end(psi0, psi1, xarr, yarr) == true) {
                 ioer::info("# check_end returns true");
@@ -358,12 +433,17 @@ void exact() {
     }
     // final output
     if (output_mod == "init_s") {
-        ioer::tabout(init_s, n0trans, n0refl, n1trans, n1refl, px0trans, py0trans, px0refl, py0refl, px1trans, py1trans, px1refl, py1refl);
+        ioer::tabout_nonewline(init_s);
     }
     else if (output_mod == "init_px") {
-        ioer::tabout(kxI, n0trans, n0refl, n1trans, n1refl, px0trans, py0trans, px0refl, py0refl, px1trans, py1trans, px1refl, py1refl);
+        ioer::tabout_nonewline(kxI);
+    }
+
+    if (enable_adiab) {
+        ioer::tabout(nad0trans, nad0refl, nad1trans, nad1refl, padx0trans, pady0trans, padx0refl, pady0refl, padx1trans, pady1trans, padx1refl, pady1refl, KE0 + KE1 + PE);
     }
     else {
+        ioer::tabout(n0trans, n0refl, n1trans, n1refl, px0trans, py0trans, px0refl, py0refl, px1trans, py1trans, px1refl, py1refl, KE0 + KE1 + PE);
     }
 }
 

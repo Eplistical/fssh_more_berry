@@ -20,13 +20,14 @@ namespace po = boost::program_options;
 using boost::numeric::odeint::runge_kutta4;
 using boost::math::erf;
 
-double L = 32;
-int M = 512;
+double L = 16;
+int M = 256;
 double mass = 1000.0;
 
-double A = 0.1;
-double B = 3.0;
-double W = 0.3;
+double param_A = 0.0025;
+double param_B = 0.01;
+double param_k = 0.8;
+double param_W = 0.5;
 
 double xI = -3.0;
 double yI = 0.0;
@@ -54,9 +55,10 @@ inline bool argparse(int argc, char** argv)
         ("L", po::value<double>(&L), "grid para, the grid is [-L/2, L/2]")
         ("M", po::value<int>(&M), "grid number")
         ("mass", po::value<double>(&mass), "mass")
-        ("A", po::value<double>(&A), "potential para")
-        ("B", po::value<double>(&B), "potential para")
-        ("W", po::value<double>(&W), "potential para")
+        ("A", po::value<double>(&param_A), "potential para")
+        ("B", po::value<double>(&param_B), "potential para")
+        ("k", po::value<double>(&param_k), "potential para")
+        ("W", po::value<double>(&param_W), "potential para")
         ("init_x", po::value<double>(&xI), "init x")
         ("init_y", po::value<double>(&yI), "init y")
         ("sigma_x", po::value<double>(&sigmax), "init sigma x")
@@ -81,17 +83,42 @@ inline bool argparse(int argc, char** argv)
     return true;
 }
 
+
+vector< complex<double> > cal_H(const double x, const double y) {
+    const double R = sqrt(x * x + y * y);
+    double coef;
+    double phi = param_W * y;
+    const complex<double> eip = exp(matrixop::IMAGIZ * phi);
+
+    vector< complex<double> > H(4, 0.0);
+    if (R > 0.0) {
+        const double R2 = R * R;
+        const double exp_R2 = exp(-R2);
+        const double expkR= exp(param_k * R);
+        coef = param_A * exp_R2 + param_B / R * (expkR - 1) / (expkR + 1);  
+        H[0+0*2] = -x;
+        H[1+1*2] = x;
+        H[0+1*2] = y * eip;
+        H[1+0*2] = conj(H[0+1*2]);
+        H *= coef;
+    }
+
+    return H;
+}
+
+/*
 vector< complex<double> > cal_H(const double x, const double y) {
     vector< complex<double> > H(4);
-    double theta = 0.5 * M_PI * (erf(B * x) + 1.0);
-    double phi = W * y;
+    double theta = 0.5 * M_PI * (erf(param_B * x) + 1.0);
+    double phi = param_W * y;
     complex<double> eip = exp(matrixop::IMAGIZ * phi);
     H[0+0*2] = -cos(theta);
     H[0+1*2] = sin(theta) * eip;
     H[1+0*2] = conj(H[0+1*2]);
     H[1+1*2] = cos(theta);
-    return A * H;
+    return param_A * H;
 }
+*/
 
 vector< complex<double> > myfftshift(const vector< complex<double> >& Z) 
 {
@@ -160,6 +187,7 @@ void exact() {
     TU = myfftshift(TU);
     // construct VU on x grid
     vector< complex<double> > V00(M*M), V01(M*M), V10(M*M), V11(M*M);
+    vector< complex<double> > evts00(M*M), evts01(M*M), evts10(M*M), evts11(M*M);
     vector< complex<double> > H00(M*M), H01(M*M), H10(M*M), H11(M*M);
     for (int k = 0; k < M; ++k) {
         double y = yarr[k];
@@ -169,7 +197,8 @@ void exact() {
             vector<double> eva;
             vector< complex<double> > evt, evamat;
             matrixop::eigh(H, eva, evt);
-
+            
+            // propagation matrix
             evamat.assign(4, 0.0);
             evamat[0+0*2] = exp(-matrixop::IMAGIZ * dt / 2.0 * eva[0]);
             evamat[1+1*2] = exp(-matrixop::IMAGIZ * dt / 2.0 * eva[1]);
@@ -182,10 +211,57 @@ void exact() {
             H01[k+j*M] = H[0+1*2];
             H10[k+j*M] = H[1+0*2];
             H11[k+j*M] = H[1+1*2];
+
+            // phase align & record evt
+            if (j == 0 and k == 0) {
+                const complex<double> phase0 = evt[0+0*2] / abs(evt[0+0*2]);
+                evt[0+0*2] *= conj(phase0);
+                evt[1+0*2] *= conj(phase0);
+                const complex<double> phase1 = evt[1+1*2] / abs(evt[1+1*2]);
+                evt[0+1*2] *= conj(phase1);
+                evt[1+1*2] *= conj(phase1);
+            }
+            else if (k == 0) {
+                const complex<double> phase0 = conj(evts00[k+(j-1)*M]) * evt[0+0*2] + conj(evts10[k+(j-1)*M]) * evt[1+0*2];
+                evt[0+0*2] *= conj(phase0);
+                evt[1+0*2] *= conj(phase0);
+                const complex<double> phase1 = conj(evts01[k+(j-1)*M]) * evt[0+1*2] + conj(evts11[k+(j-1)*M]) * evt[1+1*2];
+                evt[0+1*2] *= conj(phase1);
+                evt[1+1*2] *= conj(phase1);
+            }
+            else {
+                const complex<double> phase0 = conj(evts00[(k-1)+j*M]) * evt[0+0*2] + conj(evts10[(k-1)+j*M]) * evt[1+0*2];
+                evt[0+0*2] *= conj(phase0);
+                evt[1+0*2] *= conj(phase0);
+                const complex<double> phase1 = conj(evts01[(k-1)+j*M]) * evt[0+1*2] + conj(evts11[(k-1)+j*M]) * evt[1+1*2];
+                evt[0+1*2] *= conj(phase1);
+                evt[1+1*2] *= conj(phase1);
+            }
+            evts00[k+j*M] = evt[0+0*2];
+            evts01[k+j*M] = evt[0+1*2];
+            evts10[k+j*M] = evt[1+0*2];
+            evts11[k+j*M] = evt[1+1*2];
         }
     }
-    // initialized WF
+    // initialized WF on adiabats
+    vector< complex<double> > psiad0(M * M, 0.0), psiad1(M * M, 0.0);
     vector< complex<double> > psi0(M * M, 0.0), psi1(M * M, 0.0);
+    /*
+    for (int k = 0; k < M; ++k) {
+        double y = yarr[k];
+        for (int j = 0; j < M; ++j) {
+            double x = xarr[j];
+            psiad0[k+j*M] = c0 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+            psiad1[k+j*M] = c1 * exp(matrixop::IMAGIZ * (kxI * x + kyI * y)) * exp(-pow((x - xI) / sigmax, 2) - pow((y - yI) / sigmay, 2));
+        }
+    }
+    double nm = norm(psiad0 | psiad1);
+    psiad0 /= nm;
+    psiad1 /= nm;
+    psi0 = evts00 * psiad0 + evts01 * psiad1;
+    psi1 = evts10 * psiad0 + evts11 * psiad1;
+    */
+
     for (int k = 0; k < M; ++k) {
         double y = yarr[k];
         for (int j = 0; j < M; ++j) {
@@ -197,6 +273,7 @@ void exact() {
     double nm = norm(psi0 | psi1);
     psi0 /= nm;
     psi1 /= nm;
+
     // covinience vairables
     vector<int> dim{ M, M };
     // statistics
@@ -265,7 +342,7 @@ void exact() {
             // output
             if (istep == 0) {
                 ioer::info("# EXACT 2D ");
-                ioer::info("# para: ", " L = ", L, " M = ", M, " mass = ", mass, " A = ", A, " B = ", B, " W = ", W, 
+                ioer::info("# para: ", " L = ", L, " M = ", M, " mass = ", mass, " A = ", param_A, " B = ", param_B, " k = ", param_k, " W = ", param_W, 
                                        " xI = ", xI, " yI = ", yI, " sigmax = ", sigmax, " sigmay = ", sigmay, " kxI = ", kxI, " kyI = ", kyI, " init_s = ", init_s, " c0 = ", c0, " c1 = ", c1,
                                        " Nstep = ", Nstep, " dt = ", dt, " output_step = ", output_step);
                 ioer::info("# dx = ", dx, " dy = ", dy, " dkx = ", dkx, " dky = ", dky, " xwall_left = ", xwall_left, " xwall_right = ", xwall_right);

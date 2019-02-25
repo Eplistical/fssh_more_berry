@@ -745,7 +745,7 @@ void test() {
 }
 
 int main(int argc, char** argv) {
-    test();
+    //test();
     MPIer::setup();
     if (argc < 2) {
         if (MPIer::master) ioer::info("use --help for detailed info");

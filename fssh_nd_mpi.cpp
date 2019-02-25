@@ -15,8 +15,9 @@
 #include "boost/numeric/odeint.hpp"
 #include "boost/math/special_functions/erf.hpp"
 #include "boost/program_options.hpp"
+#include "ci_potential.hpp"
 //#include "potential.hpp"
-#include "flat_potential.hpp"
+//#include "flat_potential.hpp"
 
 enum {
     HOP_UP,
@@ -726,17 +727,25 @@ void fssh_nd_mpi() {
 
 void test() {
     vector<double> r(3, 0.0);
-    for (double x(-5.0); x < 5.0; x += 0.01) {
+    for (double x(-8.0); x < 8.0; x += 0.2) {
+        for (double y(-8.0); y < 8.0; y += 0.2) {
         r[0] = x;
+        r[1] = y;
 
         cal_info_nume(r, eva, dc, F, lastevt);
-        ioer::tabout(x, eva[0], eva[1], abs(dc[0][0+1*2]), abs(dc[1][0+1*2]), F[0][0+0*2].real(), F[0][1+1*2].real());
+        ioer::tabout(x, y, 
+                eva[0], eva[1], 
+                abs(dc[0][0+1*2]), abs(dc[1][0+1*2]), 
+                F[0][0+0*2].real(), F[1][0+0*2].real(),
+                F[0][1+1*2].real(), F[1][1+1*2].real()
+                );
+        }
     }
     abort();
 }
 
 int main(int argc, char** argv) {
-    //test();
+    test();
     MPIer::setup();
     if (argc < 2) {
         if (MPIer::master) ioer::info("use --help for detailed info");

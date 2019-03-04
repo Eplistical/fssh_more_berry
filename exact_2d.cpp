@@ -86,6 +86,7 @@ inline bool argparse(int argc, char** argv)
 }
 
 
+/*
 vector< complex<double> > cal_H(const double x, const double y) {
     const double R = sqrt(x * x + y * y);
     double coef;
@@ -108,7 +109,6 @@ vector< complex<double> > cal_H(const double x, const double y) {
     return H;
 }
 
-/*
 vector< complex<double> > cal_H(const double x, const double y) {
     vector< complex<double> > H(4);
     double theta = 0.5 * M_PI * (erf(param_B * x) + 1.0);
@@ -120,7 +120,41 @@ vector< complex<double> > cal_H(const double x, const double y) {
     H[1+1*2] = cos(theta);
     return param_A * H;
 }
+
+vector< complex<double> > cal_H(const double x, const double y) {
+    vector< complex<double> > H(4);
+    double theta = 0.5 * M_PI * (erf(0.5 * x) + 1.0);
+    double phi = 0.0 * y;
+    complex<double> eip = exp(matrixop::IMAGIZ * phi);
+    H[0+0*2] = exp(0.3 * theta);
+    H[1+1*2] = exp(0.2 * theta) + 0.3;
+    H[0+1*2] = 0.1 * sin(theta) * eip;
+    H[1+0*2] = conj(H[0+1*2]);
+    return 0.1 * H;
+}
 */
+
+vector< complex<double> > cal_H(const double x, const double y) {
+    const double R = sqrt(x * x + y * y);
+    double coef;
+    double phi = param_W * y;
+    const complex<double> eip = exp(matrixop::IMAGIZ * phi);
+
+    vector< complex<double> > H(4, 0.0);
+    if (R > 0.0) {
+        const double R2 = R * R;
+        const double exp_R2 = exp(-R2);
+        const double expkR= exp(param_k * R);
+        coef = param_A * exp_R2 + param_B / R * (expkR - 1) / (expkR + 1);  
+        H[0+0*2] = -x;
+        H[1+1*2] = x;
+        H[0+1*2] = y * eip;
+        H[1+0*2] = conj(H[0+1*2]);
+        H *= coef;
+    }
+
+    return H;
+}
 
 vector< complex<double> > myfftshift(const vector< complex<double> >& Z) 
 {
@@ -447,7 +481,29 @@ void exact() {
     }
 }
 
+
+void test() {
+    vector<double> r(3, 0.0);
+    vector<double> eva;
+    for (double x(-8.0); x < 8.0; x += 0.2) {
+        for (double y(-8.0); y < 8.0; y += 0.2) {
+            r[0] = x;
+            r[1] = y;
+            auto H = cal_H(x, y);
+            matrixop::eigh(H, eva);
+
+            ioer::tabout(x, y, 
+                    eva[0], eva[1], 
+                    H[0+0*2].real(), H[1+1*2].real()
+                    );
+        }
+    }
+    abort();
+}
+
+
 int main(int argc, char** argv) {
+    //test();
     if (argparse(argc, argv) == false) {
         return 0;
     }

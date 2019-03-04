@@ -258,6 +258,9 @@ void integrator(state_t& state, const vector<double>& mass, const double t, cons
     for (int i(0); i < edim; ++i) {
         state[ndim * 2 + i] = c[i];
     }
+
+    // calc info again for correction
+    cal_info_nume(r, eva, dc, F, lastevt);
 }
 
 int hopper(state_t& state, const vector<double>& mass) 
@@ -303,7 +306,26 @@ int hopper(state_t& state, const vector<double>& mass)
     if (randomer::rand() < g) {
         // momentum-rescaling direction: (x-direction)
         vector<double> n(ndim, 0.0);
-        n[0] = 1.0;
+
+        // Mehod #2
+        const vector<double> dcR { dc[0][from+to*edim].real(), dc[1][from+to*edim].real()  };
+        const vector<double> dcI { dc[0][from+to*edim].imag(), dc[1][from+to*edim].imag()  };
+        const double diff_norm2 = norm2(dcR) - norm2(dcI);
+        const double twice_eta0 = std::atan(-2 * (dcR[0] * dcI[0] + dcR[1] * dcI[1]) / diff_norm2);
+        double eta;
+        if (cos(twice_eta0) * diff_norm2 > 0.0) {
+            eta = 0.5 * twice_eta0;
+        }
+        else {
+            eta = 0.5 * twice_eta0 + 0.5 * M_PI;
+
+        }
+        // debug
+        // eta = 0.0;
+        const complex<double> eieta = exp(matrixop::IMAGIZ * eta);
+        n[0] = (eieta * dc[0][from+to*edim]).real();
+        n[1] = (eieta * dc[1][from+to*edim]).real();
+
 
         // hop
         if (norm(n) > 1e-40) {
@@ -582,6 +604,9 @@ void fssh_nd_mpi() {
     vector< vector< complex<double> > > lastevt_save(my_Ntraj);
 
     for (int istep(0); istep < Nstep; ++istep) {
+        if (MPIer::master) {
+            ioer::info("# step ", istep);
+        }
         for (int itraj(0); itraj < my_Ntraj; ++itraj) {
             if (check_end(state[itraj]) == false) {
                 // assign last evt

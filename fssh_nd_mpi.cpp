@@ -321,7 +321,7 @@ int hopper(state_t& state, const vector<double>& mass)
 
         }
         // debug
-        // eta = 0.0;
+        //eta = 0.0;
         const complex<double> eieta = exp(matrixop::IMAGIZ * eta);
         n[0] = (eieta * dc[0][from+to*edim]).real();
         n[1] = (eieta * dc[1][from+to*edim]).real();
@@ -604,7 +604,7 @@ void fssh_nd_mpi() {
     vector< vector< complex<double> > > lastevt_save(my_Ntraj);
 
     for (int istep(0); istep < Nstep; ++istep) {
-        if (MPIer::master) {
+        if (MPIer::master and istep % output_step == 0) {
             ioer::info("# step ", istep);
         }
         for (int itraj(0); itraj < my_Ntraj; ++itraj) {
@@ -674,6 +674,59 @@ void fssh_nd_mpi() {
         MPIer::barrier();
     }
     MPIer::barrier();
+
+
+    // ----  PROCESS & COLLECT TRAJ DATA  ---- //
+
+
+    vector<double> xarr(my_Ntraj), yarr(my_Ntraj), zarr(my_Ntraj);
+    vector<double> pxarr(my_Ntraj), pyarr(my_Ntraj), pzarr(my_Ntraj);
+    vector<double> c0Rarr(my_Ntraj), c0Iarr(my_Ntraj);
+    vector<double> c1Rarr(my_Ntraj), c1Iarr(my_Ntraj);
+    vector<int> sarr(my_Ntraj);
+
+    for (int itraj = 0; itraj < my_Ntraj; ++itraj) {
+        xarr[itraj] = state[itraj][0].real();
+        yarr[itraj] = state[itraj][1].real();
+        zarr[itraj] = state[itraj][2].real();
+        pxarr[itraj] = state[itraj][ndim+0].real();
+        pyarr[itraj] = state[itraj][ndim+1].real();
+        pzarr[itraj] = state[itraj][ndim+2].real();
+        sarr[itraj] = static_cast<int>(state[itraj][2*ndim+edim].real());
+        c0Rarr[itraj] = state[itraj][2*ndim+0].real();
+        c0Iarr[itraj] = state[itraj][2*ndim+0].real();
+        c1Rarr[itraj] = state[itraj][2*ndim+1].real();
+        c1Iarr[itraj] = state[itraj][2*ndim+1].real();
+    }
+
+    for (int r = 1; r < MPIer::size; ++r) {
+        if (MPIer::rank == r) {
+            MPIer::send(0, xarr, yarr, zarr, pxarr, pyarr, pzarr,
+                            sarr, c0Rarr, c0Iarr, c1Rarr, c1Iarr);
+        }
+        else if (MPIer::master) {
+            vector<double> vbuf;
+            vector<int> ibuf;
+
+            MPIer::recv(r, vbuf); xarr.insert(xarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); yarr.insert(yarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); zarr.insert(zarr.end(), vbuf.begin(), vbuf.end());
+
+            MPIer::recv(r, vbuf); pxarr.insert(pxarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); pyarr.insert(pyarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); pzarr.insert(pzarr.end(), vbuf.begin(), vbuf.end());
+
+            MPIer::recv(r, ibuf); sarr.insert(sarr.end(), ibuf.begin(), ibuf.end());
+
+            MPIer::recv(r, vbuf); c0Rarr.insert(c0Rarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); c0Iarr.insert(c0Iarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); c1Rarr.insert(c1Rarr.end(), vbuf.begin(), vbuf.end());
+            MPIer::recv(r, vbuf); c1Iarr.insert(c1Iarr.end(), vbuf.begin(), vbuf.end());
+        }
+        MPIer::barrier();
+    }
+    MPIer::barrier();
+
 
 
     // ----  OUTPUT  ---- //
@@ -746,11 +799,26 @@ void fssh_nd_mpi() {
         ioer::info("# hop statistics: ");
         ioer::info("# hopup = ", hopup, " hopdn = ", hopdn, " hopfr = ", hopfr, " hopfr_rate = ", hopfr / (hopup + hopdn + hopfr));
         ioer::info("# hop count: ", hop_count_summary);
+
+        // Output detailed trajectory info
+        ioer::info("# traj info: ");
+        ioer::tabout("# x", "y", "z", "px", "py", "pz", "s", "c0R", "c0I", "c1R", "c1I", "");
+        for (int itraj = 0; itraj < Ntraj; ++itraj) {
+            ioer::tabout(
+                    xarr[itraj], yarr[itraj], zarr[itraj],
+                    pxarr[itraj], pyarr[itraj], pzarr[itraj],
+                    sarr[itraj],
+                    c0Rarr[itraj], c0Iarr[itraj], 
+                    c1Rarr[itraj], c1Iarr[itraj], 
+                    ""
+                    );
+        }
     }
     MPIer::barrier();
 }
 
 void test() {
+    /*
     vector<double> r(3, 0.0);
     for (double x(-8.0); x < 8.0; x += 0.2) {
         for (double y(-8.0); y < 8.0; y += 0.2) {
@@ -766,6 +834,64 @@ void test() {
                 );
         }
     }
+    */
+    // extract information
+    vector<double> r(ndim, 0.0);
+    vector<double> p(ndim, 0.0);
+    vector<double> force(ndim, 0.0);
+    int s = 1;
+
+    ioer::tabout("# x", "y", "Fx", "Fy", "Fxmag", "Fymag", "Fxmag2", "Fymag2", "d10xR", "d10xI", "d10yR", "d10yI");
+
+    for (double x = -5; x < 5; x += 0.01) {
+        double y = -1.0;
+        double px = 20.0;
+        double py = 0.0;
+
+        r[0] = x;
+        r[1] = y;
+        r[2] = 0.0;
+        p[0] = px;
+        p[1] = py;
+        p[2] = 0.0;
+
+        // calculte info 
+        cal_info_nume(r, eva, dc, F, lastevt);
+        for (int i(0); i < ndim; ++i) {
+            force[i] = F[i][s + s * edim].real();
+        }
+
+        // cross(p, w) = F^mag
+        const double w0 = 0.0, w1 = 0.0;
+        double w2 = 0.0;
+        for (int k(0); k < edim; ++k) {
+            if (k != s) {
+                w2 += (dc[0][s+k*edim] * dc[1][k+s*edim]).imag();
+            }
+        }
+        w2 *= 2.0 / mass[2];
+
+        vector<double> Fmag { w2 * p[1], -w2 * p[0], 0.0 };
+
+        const complex<double> vdotdc = 
+            p[0] * dc[0][0+s*edim] / mass[0] 
+            + p[1] * dc[1][0+s*edim] / mass[1] 
+            + p[2] * dc[2][0+s*edim] / mass[2]
+            ; 
+
+        vector<double> Fmag2 { 
+            2.0 * (dc[0][s+0*edim] * vdotdc).imag(), 
+            2.0 * (dc[1][s+0*edim] * vdotdc).imag(), 
+            2.0 * (dc[2][s+0*edim] * vdotdc).imag()
+        };
+
+        ioer::tabout(x, y, force[0], force[1], Fmag[0], Fmag[1], Fmag2[0], Fmag2[1], 
+                real(dc[0][s+0*edim]), 
+                imag(dc[0][s+0*edim]), 
+                real(dc[1][s+0*edim]), 
+                imag(dc[1][s+0*edim]));
+    }
+
     abort();
 }
 

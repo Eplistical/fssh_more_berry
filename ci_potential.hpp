@@ -158,7 +158,7 @@ namespace {
             Hy[1+1*2] = param_A * dydpart1 + param_B * dydpart2 - 2 * param_B * dydpart3;
             Hy[0+0*2] = -Hy[1+1*2];
             Hy[0+1*2] = eip * (param_A * dydpart4 + param_B * dydpart5 - 2 * param_B * dydpart6 
-                                + matrixop::IMAGIZ * nablaphi[0] * (param_A * part4 + param_B * part5 - 2 * param_B * part6));
+                                + matrixop::IMAGIZ * nablaphi[1] * (param_A * part4 + param_B * part5 - 2 * param_B * part6));
             Hy[1+0*2] = conj(Hy[0+1*2]);
         }
 

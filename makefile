@@ -1,7 +1,7 @@
 MPICXX = mpicxx
 CXX = g++ 
 OPT = -O2
-LIBS = -L/usr/lib/x86_64-linux-gnu -lboost_program_options -lfftw3 -lopenblas -lpthread -lgfortran 
+LIBS = -lboost_program_options -lfftw3 -lopenblas -llapack -lpthread -lgfortran 
 
 all : exact_2d fssh_nd_mpi fssh_nd_rescalex_mpi
 

@@ -817,11 +817,10 @@ void fssh_nd_mpi() {
     MPIer::barrier();
 }
 
-void test() {
-    /*
+int test() {
     vector<double> r(3, 0.0);
-    for (double x(-8.0); x < 8.0; x += 0.2) {
-        for (double y(-8.0); y < 8.0; y += 0.2) {
+    for (double x(-8.0); x < 8.0; x += 0.1) {
+        for (double y(-8.0); y < 8.0; y += 0.1) {
         r[0] = x;
         r[1] = y;
 
@@ -834,8 +833,8 @@ void test() {
                 );
         }
     }
-    */
     // extract information
+    /*
     vector<double> r(ndim, 0.0);
     vector<double> p(ndim, 0.0);
     vector<double> force(ndim, 0.0);
@@ -891,12 +890,15 @@ void test() {
                 real(dc[1][s+0*edim]), 
                 imag(dc[1][s+0*edim]));
     }
+    */
 
-    abort();
+    return 0;
 }
 
 int main(int argc, char** argv) {
-    //test();
+    //return(test());
+
+
     MPIer::setup();
     if (argc < 2) {
         if (MPIer::master) ioer::info("use --help for detailed info");

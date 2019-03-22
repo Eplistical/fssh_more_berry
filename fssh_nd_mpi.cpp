@@ -197,14 +197,28 @@ void VV_integrator(state_t& state, const vector<double>& mass, const double t, c
     vector<double> force(ndim);
 
     cal_info_nume(r, eva, dc, F, lastevt);
+
+    complex<double> vdotdc(0.0, 0.0);
+    for (int k(0); k < ndim; ++k) {
+        vdotdc += p[k] / mass[k] * dc[k][(1-s)+s*edim];
+    }
+
     for (int i(0); i < ndim; ++i) {
         force[i] = F[i][s + s * edim].real();
+        // Berry force
+        force[i] += 2 * (dc[i][s+(1-s)*edim] * vdotdc).imag();
     }
     p += half_dt * force;
 
     r += dt * p / mass;
 
     cal_info_nume(r, eva, dc, F, lastevt);
+
+    vdotdc = complex<double>(0.0, 0.0);
+    for (int k(0); k < ndim; ++k) {
+        vdotdc += p[k] / mass[k] * dc[k][(1-s)+s*edim];
+    }
+
     for (int i(0); i < ndim; ++i) {
         force[i] = F[i][s + s * edim].real();
     }

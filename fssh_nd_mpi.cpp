@@ -685,9 +685,6 @@ void fssh_nd_mpi() {
     vector< vector< complex<double> > > lastevt_save(my_Ntraj);
 
     for (int istep(0); istep < Nstep; ++istep) {
-        if (MPIer::master and istep % output_step == 0) {
-            ioer::info("# step ", istep);
-        }
         for (int itraj(0); itraj < my_Ntraj; ++itraj) {
             if (check_end(state[itraj]) == false) {
                 // assign last evt

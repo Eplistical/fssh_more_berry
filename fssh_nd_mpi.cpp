@@ -167,11 +167,83 @@ bool check_end(const state_t& state) {
     return false;
 }
 
-void integrator(state_t& state, const vector<double>& mass, const double t, const double dt) 
+void VV_integrator(state_t& state, const vector<double>& mass, const double t, const double dt) 
 {
     /*
-     * integrate the state from t to t + dt
-     *  Boris 3D integrator
+     *  VV integrator
+     */
+
+    // check
+    const int ndim = mass.size();
+    const int edim = state.size() - 2 * ndim - 1;
+
+    // extract information
+    vector<double> r(ndim);
+    vector<double> p(ndim);
+    vector< complex<double> > c(edim);
+    int s;
+    for (int i(0); i < ndim; ++i) {
+        r[i] = state[i].real();
+        p[i] = state[ndim + i].real();
+    }
+    for (int i(0); i < edim; ++i) {
+        c[i] = state[ndim * 2 + i];
+    }
+    s = static_cast<int>(state[ndim * 2 + edim].real());
+
+    const double half_dt = 0.5 * dt;
+
+    // nuclear part -- VV integrator
+    vector<double> force(ndim);
+
+    cal_info_nume(r, eva, dc, F, lastevt);
+    for (int i(0); i < ndim; ++i) {
+        force[i] = F[i][s + s * edim].real();
+    }
+    p += half_dt * force;
+
+    r += dt * p / mass;
+
+    cal_info_nume(r, eva, dc, F, lastevt);
+    for (int i(0); i < ndim; ++i) {
+        force[i] = F[i][s + s * edim].real();
+    }
+    p += half_dt * force;
+
+    // electronic part -- RK4
+    vector< complex<double> > rk4_mat(edim * edim, 0.0);
+    for (int j(0); j < edim; ++j) {
+        for (int k(0); k < edim; ++k) {
+            for (int i(0); i < ndim; ++i) {
+                rk4_mat[j+k*edim] -= p[i] * dc[i][j+k*edim] / mass[i];
+            }
+        }
+    }
+    for (int j(0); j < edim; ++j) {
+        rk4_mat[j+j*edim] -= matrixop::IMAGIZ * eva[j];
+    }
+
+    vector< complex<double> > k1, k2, k3, k4;
+    k1 = dt * matrixop::matmat(rk4_mat, c, edim);
+    k2 = dt * matrixop::matmat(rk4_mat, c + 0.5 * k1, edim);
+    k3 = dt * matrixop::matmat(rk4_mat, c + 0.5 * k2, edim);
+    k4 = dt * matrixop::matmat(rk4_mat, c + k3, edim);
+    c += 1.0 / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+
+    // replace r, p, c w/ t+dt results
+    for (int i(0); i < ndim; ++i) {
+        state[i].real(r[i]);
+        state[ndim + i].real(p[i]);
+    }
+    for (int i(0); i < edim; ++i) {
+        state[ndim * 2 + i] = c[i];
+    }
+}
+
+void Boris_integrator(state_t& state, const vector<double>& mass, const double t, const double dt) 
+{
+    /*
+     *  Boris integrator
      */
 
     // check
@@ -261,6 +333,15 @@ void integrator(state_t& state, const vector<double>& mass, const double t, cons
 
     // calc info again for correction
     cal_info_nume(r, eva, dc, F, lastevt);
+}
+
+template <typename ...Params>
+void integrator(Params&&... params)
+{
+    /*
+     * integrator interface
+     */
+    Boris_integrator(std::forward<Params>(params)...);
 }
 
 int hopper(state_t& state, const vector<double>& mass) 

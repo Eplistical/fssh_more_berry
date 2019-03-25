@@ -17,7 +17,7 @@ function exact_2d(r, k, sigma, init_s, A, mass, fID)
     M = 256;                    
 
     dt = 0.1;
-    Nstep = 1000; %ceil(7.5 / (k(1) / mass) / dt); % 5000;
+    Nstep = 5000; %ceil(7.5 / (k(1) / mass) / dt); % 5000;
     tgraph = 100;
 
     enable_pop_only = false;
@@ -66,7 +66,7 @@ function exact_2d(r, k, sigma, init_s, A, mass, fID)
                 param_A = 0.0025;
                 param_B = 0.01;
                 param_k = 0.8;
-                param_W = 0.5; 
+                param_W = A; 
                 phi =  param_W * y;
                 eip = exp(1i * phi);
                 coef = param_A * exp(-r*r) + param_B / r * (exp(param_k*r) - 1) / (exp(param_k*r) + 1);
@@ -188,8 +188,8 @@ function exact_2d(r, k, sigma, init_s, A, mass, fID)
                 else
                     fprintf(fID, '# EXACT DIAB\n');
                 end
-                fprintf(fID, '# xI = %8.4f yI = %8.4f kxI = %8.4f kyI = %8.4f sigmax = %8.4f sigmay = %8.4f A = %8.4f init_s = %8.4f c1 = %8.4f c2 = %8.4f \n', ...
-                                    xI, yI, kxI, kyI, sigmax, sigmay, A, init_s, c1, c2);
+                fprintf(fID, '# xI = %8.4f yI = %8.4f kxI = %8.4f kyI = %8.4f sigmax = %8.4f sigmay = %8.4f W = %8.4f init_s = %8.4f c1 = %8.4f c2 = %8.4f \n', ...
+                                    xI, yI, kxI, kyI, sigmax, sigmay, param_W, init_s, c1, c2);
                 fprintf(fID, '# L = %8.4f M = %8d dt = %8.4f Nstep = %8d tgraph = %8d\n', ...
                                     L, M, dt, Nstep, tgraph);
                 fprintf(fID, '#%9s%16s%16s%16s%16s%16s%16s%16s\n', ...
